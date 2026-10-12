@@ -1,30 +1,24 @@
-# Fall Festival Roster — Flutter & SQLite
 
-**Mobile Application Development | In-Class Activity 08 | Section 2**
+# Local Storage Lab — Flutter & SQLite
+
+**Mobile Application Development | In-Class Activities 08 & 09 | Section 2**
 
 **Student:** Akshitha Sainath Sanagarapu (003027780)
 **Pathway:** Graduate  
-**Assignment:** Local Storage: Make Data Stay — Part 1  
-**Project folder:** `local_storage_lab`
-
----
+**Project Folder:** `local_storage_lab`
 
 ## 1. Project Overview
 
-This project is a Fall Festival guest roster built using Flutter and SQLite. The goal is to demonstrate that guest information can be saved locally, modified, deleted, and restored after restarting the application.
+This Flutter application demonstrates local data persistence using SQLite.
 
-The application supports:
+The project was originally developed for Activity 08 as a Fall Festival guest roster. Activity 09 extends the same application by introducing a Card Catalogue with folders, cards, relationships, and database migration.
 
-- Adding fictional guests with names and ages.
-- Viewing all saved guests and their database-generated IDs.
-- Editing a selected guest without changing other records.
-- Canceling edits without saving changes.
-- Deleting guests with a confirmation dialog.
-- Refreshing the roster and displaying the current record count.
-- Rejecting invalid input before writing to SQLite.
-- Displaying loading, empty-state, and error feedback.
+The application now includes two features:
 
-The application uses a single screen and the course-provided database helper.
+1. **Fall Festival Roster (Activity 08):** Manage fictional guests using SQLite.
+2. **Card Catalogue (Activity 09):** Organize cards into folders using a relational SQLite database.
+
+The goal of Activity 09 is to extend an existing database without losing previously stored data.
 
 ## 2. Development Environment
 
@@ -33,15 +27,15 @@ The application uses a single screen and the course-provided database helper.
 | Flutter | 3.47.2 (stable) |
 | Dart | 3.13.2 |
 | IDE | Visual Studio Code |
-| Operating system | macOS |
-| Test device | Pixel 10 Android emulator |
-| Android version | Android 17, API 37 |
+| Operating System | macOS |
+| Test Device | Pixel 10 Android Emulator |
+| Android Version | Android 17, API 37 |
 | Database | SQLite |
 | Packages | `sqflite`, `path_provider`, `path` |
 
-### How to Run
+### Running the Application
 
-Open a terminal in the project folder and execute:
+Open a terminal inside `local_storage_lab` and run:
 
 ```bash
 flutter pub get
@@ -49,263 +43,615 @@ flutter devices
 flutter run -d emulator-5554
 ```
 
-The device identifier may differ on another computer.
+The emulator ID may differ depending on the development environment.
 
-To check for static analysis issues:
+To run static analysis:
 
 ```bash
 flutter analyze
 ```
 
-The application was tested on Android rather than Flutter web because the supplied SQLite implementation targets Android and iOS.
+To save the analyzer output:
 
-## 3. Database Architecture
+```bash
+mkdir -p evidence
+flutter analyze 2>&1 | tee evidence/analysis_output.txt
+```
 
-### Database Initialization
+To build a release APK:
 
-The project uses the supplied `DatabaseHelper` class from `lib/database_helper.dart`.
+```bash
+flutter build apk --release
+```
 
-The helper is initialized before the application loads its guest records. The initialized instance is reused for subsequent CRUD operations.
+The generated APK is expected at:
 
-The database is stored locally on the device, allowing saved records to remain available after the application process ends.
+```text
+build/app/outputs/flutter-apk/app-release.apk
+```
 
-### Database Schema
+The project uses native SQLite storage and was tested on an Android emulator rather than Flutter web.
 
-**Database:** `MyDatabase.db`  
-**Table:** `my_table`  
-**Schema version:** 1
+## 3. Application Structure
 
-| Column | SQLite type | Description |
+The application has a home screen with two navigation options.
+
+### Fall Festival Roster
+
+This is the original Activity 08 feature.
+
+It supports:
+
+- Adding guests with names and ages.
+- Viewing saved records and database-generated IDs.
+- Editing records by their unique IDs.
+- Canceling edits without saving.
+- Deleting records with confirmation.
+- Refreshing records from SQLite.
+- Displaying the current record count.
+- Validating guest names and ages.
+
+### Card Catalogue
+
+This is the Activity 09 feature.
+
+It supports:
+
+- Creating folders.
+- Displaying folders and their card counts.
+- Opening a folder to view its cards.
+- Creating cards with a title, suit, notes, and optional image reference.
+- Editing an existing card.
+- Moving a card to a different folder through the folder selector.
+- Deleting individual cards by ID.
+- Deleting folders with confirmation.
+- Displaying a fallback suit symbol when an image is unavailable.
+- Rejecting empty card titles.
+- Preserving data across application restarts.
+
+## 4. Project Files
+
+| File | Responsibility |
+|---|---|
+| `lib/main.dart` | Application initialization, home navigation, and original roster |
+| `lib/database_helper.dart` | SQLite initialization, schema versioning, and original roster CRUD |
+| `lib/folder.dart` | Folder data model |
+| `lib/card_record.dart` | Card data model |
+| `lib/catalogue_repository.dart` | Folder and card database operations |
+| `lib/catalogue_screen.dart` | Card Catalogue screens, forms, and dialogs |
+| `pubspec.yaml` | Flutter project dependencies |
+
+The Card Catalogue separates database operations from the user interface through a repository class.
+
+## 5. SQLite Database Architecture
+
+### Database Details
+
+**Database name:** `MyDatabase.db`  
+**Original schema version:** 1  
+**Updated schema version:** 2
+
+The database contains three tables:
+
+1. `my_table`
+2. `folders`
+3. `cards`
+
+### Original Table: `my_table`
+
+This table belongs to Activity 08.
+
+| Column | SQLite Type | Purpose |
 |---|---|---|
-| `_id` | INTEGER PRIMARY KEY | Unique ID generated by SQLite |
+| `_id` | INTEGER PRIMARY KEY | Unique guest ID |
 | `name` | TEXT NOT NULL | Guest name |
 | `age` | INTEGER NOT NULL | Guest age |
 
-The primary key is important because guests can have identical names. The application never relies on the guest's name or list position to identify a record.
+The original guest records are preserved when the database is upgraded.
 
-### CRUD Implementation
+### New Table: `folders`
 
-**Create:** The application validates the form, inserts the guest through the database helper, and displays the generated ID.
+The folders table stores the categories used to organize cards.
 
-**Read:** The application retrieves guest records and the record count from SQLite, then updates the displayed roster.
+Each folder has a database-generated ID, a name, and creation information.
 
-**Update:** The application saves changes using the selected guest's integer ID. The expected affected-row count is one.
+The application displays the number of cards associated with each folder.
 
-**Delete:** The application requests confirmation and deletes only the selected ID. Canceling the dialog leaves the database unchanged.
+### New Table: `cards`
 
-**Refresh:** The application queries SQLite again instead of treating an in-memory list as the source of truth.
+The cards table stores the Card Catalogue records.
 
-Database operations use asynchronous calls so the interface can show progress and handle errors.
+Each card contains:
 
-## 4. Input Validation
-
-The same validation policy is applied when adding and editing guests.
-
-| Field | Validation rule |
+| Field | Purpose |
 |---|---|
-| Name | Trim leading/trailing spaces and reject an empty result |
-| Age | Must be a whole number |
-| Minimum age | 0 |
-| Maximum age | 130 |
-| Invalid numbers | Reject text, decimals, negatives, and values above 130 |
+| ID | Unique database identity |
+| Title | Card name |
+| Suit | Hearts, Diamonds, Clubs, or Spades |
+| Notes | Optional description |
+| Image reference | Optional image URL |
+| Folder ID | Reference to the owning folder |
 
-The application uses integer parsing and displays validation feedback when input is rejected.
+The folder ID establishes the relationship between a card and its folder.
 
-Invalid input does not create or modify a database record.
+### Relationships and Foreign Keys
 
-SQLite's `NOT NULL` constraints provide basic structural protection, but they do not enforce all of these application-specific rules.
+The Card Catalogue uses a one-to-many relationship:
 
-## 5. Storage Comparison
+```text
+Folder
+  |
+  +-- Card
+  +-- Card
+  +-- Card
+```
 
-| Storage method | Example | Why it matters |
+One folder can contain multiple cards, but each card belongs to one folder at a time.
+
+SQLite foreign-key enforcement is enabled during database configuration.
+
+The card-to-folder relationship uses cascading deletion so that removing a folder also removes its associated cards.
+
+### Database Migration
+
+Activity 08 used database version 1.
+
+Activity 09 upgrades the schema to version 2.
+
+The migration adds the `folders` and `cards` tables while retaining the original `my_table`.
+
+This is important because changing only the database creation logic would not update an already-installed application.
+
+The upgrade logic handles existing installations, while the creation logic supports new installations.
+
+The migration is intended to preserve existing guest data rather than replacing the database.
+
+## 6. CRUD Implementation
+
+### Folder Operations
+
+**Create:** Insert a folder after validating its name.
+
+**Read:** Query saved folders and calculate their associated card counts.
+
+**Delete:** Request confirmation before deleting a folder.
+
+### Card Operations
+
+**Create:** Validate card details and insert the new record into SQLite.
+
+**Read:** Query cards associated with a selected folder.
+
+**Update:** Modify a card using its unique database ID.
+
+**Delete:** Remove only the card identified by its ID.
+
+### Why Unique IDs Matter
+
+Two cards can have identical titles.
+
+For example, the application successfully stored:
+
+| ID | Title | Suit |
 |---|---|---|
-| In-memory Flutter state | Form values, loading status, selected editing ID | Useful for the current screen, but not durable across process restarts |
-| Key-value preferences | A saved festival theme preference | Suitable for small settings |
-| SQLite | Guest ID, name, and age | Suitable for structured records and CRUD operations |
+| 1 | Compass | Hearts |
+| 2 | Compass | Spades |
 
-I selected SQLite because the roster needs persistent records with unique identities. Two guests can share a name while remaining separate database rows.
+The records remained independent because they had different database-generated IDs.
 
-## 6. Manual Testing — T1 Through T6
+When card ID 1 was edited, card ID 2 remained unchanged.
 
-The tests used fictional guest data and were performed on the Android emulator.
+This demonstrates why update and delete operations should target primary keys rather than visible titles.
 
-### T1 — Empty Roster
+## 7. Input Validation and Error Handling
 
-**Action:** Open and refresh the roster with no saved guests.
+The application validates user input before performing database operations.
 
-**Expected:** Record count 0 and an empty-state message.
+### Folder Validation
 
-**Observed:** The application displayed count 0 and the empty-state message.
+- Folder names cannot be empty after trimming whitespace.
+- Duplicate folder names are handled through database constraints and error feedback.
+
+### Card Validation
+
+- Card titles cannot be empty.
+- Suits must be selected from the supported options.
+- Cards must reference an existing folder.
+- Notes are optional.
+- Image URLs are optional.
+
+### Image Fallback
+
+If no image reference is provided, the application displays the card's suit symbol.
+
+If an image URL cannot be loaded, the application also displays the suit symbol instead of a broken image.
+
+Supported suit symbols include:
+
+- Hearts: ♥
+- Diamonds: ♦
+- Clubs: ♣
+- Spades: ♠
+
+### User Experience
+
+The application includes:
+
+- Loading indicators.
+- Empty-state messages.
+- Confirmation dialogs.
+- Cancel buttons.
+- Validation feedback.
+- Error messages.
+- Refreshable database-backed lists.
+
+Dialog text controllers are managed by dedicated stateful widgets to avoid accessing disposed controllers after a dialog closes.
+
+## 8. Activity 08 — Original Roster Testing
+
+The original Activity 08 implementation tested:
+
+- Empty roster behavior.
+- Creating guests with duplicate names.
+- Editing by unique ID.
+- Canceling an edit.
+- Persistence after relaunch.
+- Deleting by unique ID.
+- Name and age validation.
+- Minimum and maximum accepted ages.
+
+The age validation accepts whole numbers from 0 through 130.
+
+The Activity 08 test data remaining in the upgraded application was observed as:
+
+| Guest ID | Name | Age |
+|---|---|---|
+| 2 | River | 35 |
+| 3 | Acorn | 0 |
+| 4 | Oak | 130 |
+
+The original roster was displayed after Activity 09 changes were installed, providing evidence that the existing records remained accessible.
+
+## 9. Activity 09 — Manual Testing
+
+Testing was performed on a Pixel 10 Android emulator.
+
+### T1 — Database Upgrade and Existing Data
+
+**Objective:** Confirm that upgrading the database does not remove the Activity 08 guest records.
+
+**Observed:**
+
+The original Fall Festival Roster displayed three existing records:
+
+- River, ID 2, age 35.
+- Acorn, ID 3, age 0.
+- Oak, ID 4, age 130.
+
+The Card Catalogue was also accessible.
+
+**Result:** PASS for the observed upgraded installation.
+
+**Additional verification:** A separate fresh-install schema test is still required.
+
+### T2 — Folder and Card Creation
+
+**Objective:** Create folders and cards, including records with duplicate titles.
+
+**Folders created:**
+
+- Atlas
+- Harbor
+
+**Cards created:**
+
+| ID | Title | Suit | Folder |
+|---|---|---|---|
+| 1 | Compass | Hearts | Atlas |
+| 2 | Compass | Spades | Atlas |
+| 3 | Signal | Diamonds | Harbor |
+
+**Observed:**
+
+- Both folders were displayed.
+- Atlas contained two Compass cards.
+- Harbor contained one Signal card.
+- Duplicate card titles received different IDs.
+- Card symbols appeared when image URLs were blank.
 
 **Result:** PASS
 
-### T2 — Create Two Guests
+### T3 — Edit a Card by ID
 
-**Action:** Add the following records:
-
-| Generated ID | Name | Age |
-|---|---|---|
-| 1 | River | 21 |
-| 2 | River | 34 |
-
-**Expected:** Two records with distinct database-generated IDs.
-
-**Observed:** SQLite assigned IDs 1 and 2, and the roster count became 2.
-
-**Result:** PASS
-
-### T3 — Edit by ID
+**Objective:** Update one Compass card without modifying the other.
 
 **Action:**
 
-1. Select guest ID 2 for editing.
-2. Change the age to 99.
-3. Select Cancel.
-4. Verify that the age remains 34.
-5. Edit ID 2 again and save age 35.
+Edited card ID 1:
 
-**Expected:** Cancel makes no database change. Saving updates only ID 2.
+- Title changed from Compass to Compass Updated.
+- Suit changed from Hearts to Clubs.
+- Notes changed to Edited first Compass card.
 
-**Observed:** ID 2 changed to age 35, the update affected one row, and ID 1 remained age 21. The count stayed 2.
+**Observed:**
+
+Card ID 1 reflected the new details.
+
+Card ID 2 remained Compass with the Spades suit.
 
 **Result:** PASS
 
 ### T4 — Persistence After Restart
 
-**Prediction:** Both River records should remain saved because they are stored in SQLite rather than only in Flutter memory.
-
-**Records before restart:**
-
-| ID | Name | Age |
-|---|---|---|
-| 1 | River | 21 |
-| 2 | River | 35 |
-
-**Expected count:** 2
-
-**Procedure recorded during testing:** I exited the Flutter run session using `q` and relaunched the same installed application using `flutter run -d emulator-5554`. I did not uninstall the app or clear its storage.
-
-**Observed:** Both records were restored with the same IDs and ages. The count remained 2.
-
-**Result:** PASS for the recorded relaunch observation.
-
-**Evidence:** `evidence/T4_before.png` and `evidence/T4_after.png`.
-
-**Procedure note:** The assignment specifically requests Android App info → Force stop before reopening the app. The recorded relaunch demonstrates persistence, but the additional Force stop step should be performed to match the exact prescribed procedure.
-
-### T5 — Delete by ID
+**Objective:** Confirm that card data remains available after restarting the application.
 
 **Action:**
 
-1. Select Delete for ID 1.
-2. Cancel the confirmation dialog.
-3. Verify both records remain.
-4. Select Delete for ID 1 again.
-5. Confirm deletion and refresh.
+Stopped the Flutter session, closed the application, and relaunched it on the same Android emulator without clearing application data.
 
-**Expected:** Cancel preserves both records; confirmation deletes only ID 1.
+**Observed after relaunch:**
 
-**Observed:** ID 1 was removed, ID 2 remained, and the record count became 1.
+| ID | Title | Suit | Folder |
+|---|---|---|---|
+| 1 | Compass Updated | Clubs | Atlas |
+| 2 | Compass | Spades | Atlas |
+
+The records retained their original IDs and edited values.
 
 **Result:** PASS
 
-### T6 — Validation and Boundary Testing
+### T5 — Card and Folder Deletion
 
-Starting with the remaining River record, I tested the following inputs:
+**Objective:** Verify deletion by ID and folder deletion behavior.
 
-| Input | Expected | Observed | Result |
-|---|---|---|---|
-| Spaces-only name, age 21 | Reject | Rejected | Pass |
-| Maple, age `abc` | Reject | Rejected | Pass |
-| Maple, age `1.5` | Reject | Rejected | Pass |
-| Maple, age `-1` | Reject | Rejected | Pass |
-| Maple, age `131` | Reject | Rejected | Pass |
-| Acorn, age `0` | Accept | Accepted | Pass |
-| Oak, age `130` | Accept | Accepted | Pass |
+**Individual card deletion:**
 
-The five invalid attempts did not add records.
+Deleted Compass, ID 2.
 
-The two valid boundary-age records were successfully inserted.
+**Observed:**
 
-**Final observed record count:** 3
+Compass Updated, ID 1, remained in Atlas.
 
-**Evidence:** `evidence/T6_invalid.png`.
+**Folder deletion:**
 
-## 7. Evidence and Static Analysis
+Deleted Harbor, which previously contained Signal, ID 3.
 
-The project contains the following required evidence files:
+**Observed:**
+
+Harbor disappeared from the folder list.
+
+Atlas remained intact.
+
+**Result:** PASS for the observed UI behavior.
+
+**Additional verification:** Direct database-level confirmation that Signal was removed through `ON DELETE CASCADE` remains to be completed.
+
+### T6 — Invalid Input and Image Fallback
+
+**Objective:** Verify validation and graceful handling of invalid image references.
+
+**Empty-title test:**
+
+Attempted to save a card with a blank title.
+
+**Observed:**
+
+The dialog remained open and displayed:
+
+```text
+Title cannot be empty
+```
+
+No new card was created.
+
+**Invalid image test:**
+
+Created a temporary card with:
+
+| Field | Value |
+|---|---|
+| Title | Image Test |
+| Suit | Diamonds |
+| Folder | Atlas |
+| Image URL | `https://example.invalid/missing.png` |
+
+**Observed:**
+
+The card displayed the Diamonds fallback symbol without crashing.
+
+**Result:** PASS
+
+### Test Data Cleanup
+
+After testing:
+
+- Compass, ID 2, was deleted.
+- Harbor and its associated Signal card were removed through the folder deletion workflow.
+- The temporary Image Test card was deleted.
+- The temporary Test Folder was deleted.
+
+**Final observed Card Catalogue state:**
+
+- Atlas: 1 card.
+- Compass Updated: ID 1, Clubs.
+
+## 10. Evidence and Screenshots
+
+The project uses an `evidence` directory for screenshots and analysis results.
+
+Recommended Activity 09 evidence filenames:
 
 | File | Description |
 |---|---|
-| `evidence/T4_before.png` | Roster before the persistence test |
-| `evidence/T4_after.png` | Roster after relaunch |
-| `evidence/T6_invalid.png` | Invalid-input validation feedback |
-| `evidence/analysis_output.txt` | Flutter analyzer output |
+| `evidence/T1_before.png` | Original Activity 08 guest records after upgrade |
+| `evidence/T2_folders.png` | Atlas and Harbor folders |
+| `evidence/T2_cards.png` | Two Compass cards with different IDs |
+| `evidence/T2_signal.png` | Signal card in Harbor |
+| `evidence/T3_edit.png` | Edited Compass and unchanged second card |
+| `evidence/T4_after.png` | Cards preserved after restart |
+| `evidence/T5_delete.png` | Remaining card after individual deletion |
+| `evidence/T5_folder_delete.png` | Folder list after deleting Harbor |
+| `evidence/T6_invalid.png` | Empty-title validation message |
+| `evidence/T6_image_fallback.png` | Invalid image URL fallback |
+| `evidence/analysis_output.txt` | Flutter static analysis result |
 
-### Flutter Analyze Result
+These are recommended filenames for organizing the captured screenshots. Screenshots must be copied into the project and named accordingly before submission.
 
-Command:
+### Static Analysis
 
-```bash
-flutter analyze
-```
-
-Final result:
+The final recorded analyzer result was:
 
 ```text
+Analyzing local_storage_lab...
 No issues found! (ran in 0.9s)
 ```
 
-The unmodified generated counter-app test was removed because it referenced the original template application rather than the completed roster.
+This confirms that Flutter's static analyzer reported no issues at the time of testing.
 
-## 8. Graduate Reflection Questions
+Static analysis does not replace runtime or database verification.
 
-### Reflection 1 — The Disappearing-Data Mystery
+## 11. Activity 08 — Graduate Reflection
 
-Before restarting, I predicted that River with ID 1 and age 21 and River with ID 2 and age 35 would remain saved, with a count of 2. The database helper initializes SQLite before the screen loads, and the screen's initial query retrieves the stored rows and displays them. After the recorded relaunch, the same IDs, ages, and count appeared in the before-and-after screenshots. If the records disappeared, were automatically recreated with different IDs, or returned with unexpected values, that would contradict my claim that the original SQLite records had been restored.
+### Reflection 1: The Disappearing-Data Mystery
 
-### Reflection 2 — Two Rivers, One Wrong Edit
+Before restarting the original roster, I predicted that the saved River records would remain available because they were stored in SQLite rather than only in Flutter memory.
 
-Both guests were named River, but their database-generated IDs were different. When I canceled the edit for ID 2, its age stayed 34; when I saved the next edit, only ID 2 changed to age 35, while ID 1 remained 21. The update affected one row, demonstrating why an integer primary key is more reliable than a guest name or visible list position.
+After relaunching the application, the same saved records and IDs were displayed.
 
-### Reflection 3 — Usability Walkthrough
+If the records had disappeared or returned with different values, that would have contradicted the expected persistence behavior.
 
-During my walkthrough, I encountered a refresh issue after inserting records because the application attempted to sort a database result list directly. I corrected the code to use a modifiable list before sorting, and the records displayed correctly afterward. One improvement I would propose is clearer diagnostic information during development while keeping messages shown to ordinary users simple and understandable.
+### Reflection 2: Two Rivers, One Wrong Edit
 
-### Reflection 4 — Defending the Storage Boundary
+Two guests shared the name River but had different IDs.
 
-I placed name and age validation in the Flutter interface before database writes because it gives users immediate feedback and prevents invalid submissions through the normal workflow. The SQLite schema uses `NOT NULL` constraints and a primary key, but those constraints alone do not enforce trimmed names or the 0–130 age range. Adding a required column in a future release could cause problems for existing installations because changing `onCreate` does not modify an already-created database. A versioned migration with an appropriate default or a plan for populating existing rows would be needed to preserve saved data.
+Canceling an edit left the original value unchanged. Saving a later edit updated only the selected record.
 
-## 9. Error Handling and User Experience
+This showed why unique primary keys are necessary when different records can have the same visible name.
 
-The interface provides:
+### Reflection 3: Usability Walkthrough
 
-- A loading indicator during database operations.
-- An empty-state message when a successful query returns no guests.
-- Validation feedback for invalid form input.
-- Cancel options for editing and deleting.
-- Confirmation before deleting a guest.
-- A Refresh action to retrieve the current database state.
-- Error feedback when database operations fail.
+During development, the original roster encountered a refresh issue caused by sorting a database result list directly.
 
-These behaviors help distinguish an empty roster from a loading or database failure.
+The implementation was corrected to use a modifiable list before sorting.
 
-## 10. Known Limitations
+This reinforced the importance of testing the interface after database operations, not just checking whether the SQL statement succeeds.
 
-The project is intentionally limited to the requirements of In-Class Activity 08.
+### Reflection 4: Defending the Storage Boundary
 
-It does not include cloud synchronization, authentication, database encryption, automated integration tests, or schema migrations.
+The roster validates guest names and ages in Flutter before writing to SQLite.
 
-The SQLite database is local to the installed application. The project does not provide automatic backup or cross-device synchronization.
+This provides immediate feedback to the user.
 
-## 11. Attribution and AI Assistance
+SQLite constraints protect the database structure, but they do not automatically enforce every application-specific validation rule.
 
-The course-provided `database_helper.txt` was used as the starting point for the SQLite helper.
+Future schema changes should use versioned migrations so existing installations retain their saved data.
 
-Flutter and the `sqflite`, `path_provider`, and `path` packages were used for the application and persistence functionality.
+## 12. Activity 09 — Graduate Reflection
 
-ChatGPT assisted with Flutter interface development, debugging, manual test planning, and drafting and revising this README. The recorded application observations came from testing on the Android emulator.
+### Reflection 1: Preserving Existing Data
+
+Activity 09 required extending the original SQLite database rather than creating an unrelated replacement.
+
+The application continued displaying the original guest records after the updated schema was installed.
+
+This demonstrated why preserving the database name, original table, and migration path matters.
+
+The existing data should not be deleted merely because new functionality has been introduced.
+
+### Reflection 2: Relationships and Primary Keys
+
+The Card Catalogue uses a one-to-many relationship between folders and cards.
+
+Each card has a unique ID and a folder reference.
+
+During testing, two cards named Compass were inserted into Atlas.
+
+Editing one Compass card changed only its selected ID.
+
+This demonstrated the importance of using primary keys for updates and foreign keys for relationships.
+
+### Reflection 3: Testing Persistence and Deletion
+
+The cards remained available after the application was stopped and relaunched.
+
+The edited Compass card retained its ID and updated values.
+
+Deleting the other Compass card did not remove the edited card.
+
+Deleting Harbor removed it from the folder list while Atlas remained available.
+
+These tests helped verify that the interface continued reflecting the saved SQLite state after different operations.
+
+### Reflection 4: Debugging and User Experience
+
+During Activity 09 testing, the application encountered a Flutter widget lifecycle assertion involving dialog controllers.
+
+The issue was addressed by moving the dialog controllers into dedicated stateful widgets and disposing them through the widget lifecycle.
+
+The application was then rebuilt and tested again.
+
+Subsequent folder and card operations completed without the earlier red-screen error.
+
+This experience reinforced the importance of testing asynchronous workflows and widget lifecycles in addition to database logic.
+
+## 13. Graduate AI Lab
+
+AI assistance was used during development to:
+
+- Review the existing Flutter and SQLite implementation.
+- Plan the database migration.
+- Organize the folder and card models.
+- Implement the repository and interface.
+- Investigate Flutter analyzer warnings.
+- Debug the dialog controller lifecycle issue.
+- Plan manual tests for persistence, editing, deletion, and validation.
+- Improve project documentation.
+
+The application behavior described in the testing section was checked using the Android emulator.
+
+**Graduate AI lab exercises G1–G4:** The two selected exercises and their required prompts, outputs, and reflections still need to be documented separately before submission. General development assistance is not automatically equivalent to completing those exercises.
+
+## 14. Known Limitations
+
+- Data is stored locally on the installed device.
+- The application does not provide cloud synchronization.
+- There is no user authentication or database encryption.
+- Images are referenced by URL rather than stored as binary data.
+- An unavailable image URL displays a suit symbol.
+- The current testing evidence is primarily based on manual emulator testing.
+- A separate disposable fresh-install schema test and direct cascade verification remain outstanding.
+
+## 15. Attribution and AI Assistance
+
+The original SQLite database helper was based on the course-provided material used for Activity 08.
+
+The project uses Flutter, Dart, SQLite, and the `sqflite`, `path_provider`, and `path` packages.
+
+ChatGPT assisted with test planning and debugging.
+
+All stated manual testing observations were based on interactions with the Android emulator.
+
+## 16. Final Submission Checklist
+
+- [x] Preserve the Activity 08 roster functionality.
+- [x] Implement the Card Catalogue.
+- [x] Add folders and cards.
+- [x] Support card creation, reading, editing, and deletion.
+- [x] Support folder deletion.
+- [x] Test duplicate card titles with unique IDs.
+- [x] Test persistence after restart.
+- [x] Test invalid card titles.
+- [x] Test invalid image URL fallback.
+- [x] Run `flutter analyze` successfully.
+- [ ] Copy and organize all required screenshots in `evidence/`.
+- [ ] Complete fresh-install database verification.
+- [ ] Verify cascade deletion directly in SQLite.
+- [ ] Complete two graduate AI lab exercises.
+- [ ] Build and verify the release APK.
+- [ ] Prepare the required reflection document.
+- [ ] Commit and push the final project to GitHub.
+- [ ] Submit all required files and links.
 
 ---
 
-**Project status:** Core SQLite roster functionality implemented; manual T1–T6 observations documented; analyzer completed without issues.
+**Project Status:** Activity 08 and Activity 09 core functionality implemented and manually tested. Final verification, graduate AI lab documentation, evidence packaging, release build, and submission preparation remain.

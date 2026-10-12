@@ -1,6 +1,11 @@
 
 import 'package:flutter/material.dart';
 import 'database_helper.dart';
+import 'catalogue_repository.dart';
+import 'catalogue_screen.dart';
+
+final GlobalKey<NavigatorState> navigatorKey =
+    GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,10 +39,46 @@ class FestivalApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Fall Festival Roster',
-      debugShowCheckedModeBanner: false,
-      home: FestivalScreen(helper: helper),
-    );
+  title: 'Fall Festival Roster',
+  debugShowCheckedModeBanner: false,
+  home: Scaffold(
+    appBar: AppBar(
+      title: const Text('Local Storage Lab'),
+    ),
+    body: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        ListTile(
+          leading: const Icon(Icons.people),
+          title: const Text('Fall Festival Roster'),
+          subtitle: const Text('Activity 08 - Original Data'),
+          onTap: () {
+            navigatorKey.currentState?.push(
+              MaterialPageRoute(
+                builder: (_) => FestivalScreen(helper: helper),
+              ),
+            );
+          },
+        ),
+        ListTile(
+          leading: const Icon(Icons.folder_copy),
+          title: const Text('Card Catalogue'),
+          subtitle: const Text('Activity 09 - Folders and Cards'),
+          onTap: () {
+            navigatorKey.currentState?.push(
+              MaterialPageRoute(
+                builder: (_) => CatalogueScreen(
+                  repository: CatalogueRepository(helper),
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+    ),
+  ),
+  navigatorKey: navigatorKey,
+);
   }
 }
 
