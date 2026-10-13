@@ -12,14 +12,14 @@
 
 This Flutter application demonstrates local data persistence using SQLite.
 
-Activity 08 introduced the Fall Festival Roster, which stores guest records in a local SQLite database. Activity 09 extends the same application with a Card Catalogue containing folders and cards.
+Activity 08 implemented a Fall Festival Roster for managing guest records. Activity 09 extends the existing application with a Card Catalogue that supports folders, cards, relational data, and database migration.
 
-The main objective is to add a relational database structure without losing the original Activity 08 records.
+The primary objective of Activity 09 is to upgrade the SQLite database from version 1 to version 2 without losing the original Activity 08 records.
 
 The application provides two features:
 
-- **Fall Festival Roster:** Create, read, update, and delete fictional guest records.
-- **Card Catalogue:** Create folders, organize cards by folder, edit cards by ID, and delete cards or folders.
+- **Fall Festival Roster:** Create, view, edit, and delete guest records.
+- **Card Catalogue:** Create folders, manage cards, edit records by ID, and delete cards or folders.
 
 ## 2. Development Environment
 
@@ -29,98 +29,110 @@ The application provides two features:
 | Dart | 3.13.2 |
 | IDE | Visual Studio Code |
 | Operating system | macOS |
-| Test device | Pixel 10 Android Emulator |
-| Android version | Android 17, API 37 |
+| Original test emulator | Pixel 10 |
+| Disposable test emulator | Activity09_Test |
+| Android | API 37 |
 | Database | SQLite |
 | Packages | sqflite, path_provider, path |
 | Pathway | Graduate |
 
 ### Setup and Run
 
-Open the project directory and run:
-
 ```bash
 flutter pub get
 flutter devices
-flutter run -d emulator-5554
+flutter run
 ```
 
-The emulator ID may differ on another machine.
+Select an available emulator when prompted.
 
 ### Static Analysis
 
 ```bash
-mkdir -p evidence
-flutter analyze 2>&1 | tee evidence/analysis_output.txt
+flutter analyze
 ```
 
-### Release APK
+**Verified result:**
+
+```text
+Analyzing local_storage_lab...
+No issues found!
+```
+
+### Build Release APK
 
 ```bash
 flutter build apk --release
 ```
 
-Flutter generates the APK at:
+Output:
 
 ```text
 build/app/outputs/flutter-apk/app-release.apk
 ```
 
-The submission copy is named:
+The submission APK is named:
 
 ```text
 Activity09_Sanagarapu_Akshitha.apk
 ```
 
-The release APK was built successfully and installed on the Pixel 10 emulator using `adb install -r`. Installation returned `Success`. A separate confirmation of the release application's screens and data is still needed to complete the smoke test.
+The release APK was successfully built and installed on the Android emulator.
+
+A debug APK was also built for inspection of the SQLite database on a separate disposable emulator.
 
 ## 3. Project Structure
 
 | File | Responsibility |
 |---|---|
-| `lib/main.dart` | Home navigation and Activity 08 roster |
-| `lib/database_helper.dart` | SQLite initialization, versioning, and roster operations |
-| `lib/folder.dart` | Folder model |
-| `lib/card_record.dart` | CardRecord model |
+| `lib/main.dart` | Navigation and Activity 08 roster |
+| `lib/database_helper.dart` | SQLite initialization, migration, and roster operations |
+| `lib/folder.dart` | Folder data model |
+| `lib/card_record.dart` | Card data model |
 | `lib/catalogue_repository.dart` | Folder and card database operations |
-| `lib/catalogue_screen.dart` | Card Catalogue interface and dialogs |
-| `pubspec.yaml` | Dependencies and Flutter configuration |
-| `pubspec.lock` | Resolved dependency versions |
-| `README.md` | Setup, architecture, tests, evidence, and limitations |
-| `evidence/` | Screenshots and analyzer output |
+| `lib/catalogue_screen.dart` | Card Catalogue UI |
+| `pubspec.yaml` | Flutter dependencies |
+| `README.md` | Documentation, testing, and evidence |
+| `evidence/` | Screenshots and test evidence |
 
-The Card Catalogue uses a repository layer to separate SQLite operations from Flutter interface widgets.
+The application uses a repository layer to separate database operations from the Flutter user interface.
 
-## 4. Database Architecture
+## 4. SQLite Database Architecture
 
-### Existing Database
+**Database:** `MyDatabase.db`
 
-**Database filename:** `MyDatabase.db`
+**Activity 08 version:** 1  
+**Activity 09 version:** 2
 
-**Activity 08 schema version:** 1  
-**Activity 09 schema version:** 2
+The application stores the database in the application documents directory using `getApplicationDocumentsDirectory()`.
+
+On the disposable Android emulator, the database was located at:
+
+```text
+/data/user/0/com.example.local_storage_lab/app_flutter/MyDatabase.db
+```
+
+### Application Tables
 
 The version-2 database contains three application tables:
 
-- `my_table`
-- `folders`
-- `cards`
+1. `my_table`
+2. `folders`
+3. `cards`
 
-### Original Guest Table
+### Original Activity 08 Table
 
-The existing `my_table` stores Activity 08 guest records.
+The original `my_table` stores guest records.
 
-| Column | Type | Purpose |
-|---|---|---|
-| `_id` | INTEGER PRIMARY KEY | Guest identity |
-| `name` | TEXT | Guest name |
-| `age` | INTEGER | Guest age |
+| Column | Type |
+|---|---|
+| `_id` | INTEGER PRIMARY KEY |
+| `name` | TEXT |
+| `age` | INTEGER |
 
-The original table is retained during the version-2 migration.
+The version-2 migration retains this table.
 
 ### Folders Table
-
-The `folders` table contains:
 
 | Column | Type |
 |---|---|
@@ -128,11 +140,7 @@ The `folders` table contains:
 | `name` | TEXT NOT NULL UNIQUE |
 | `created_at` | TEXT NOT NULL |
 
-Each folder has a unique ID and can contain multiple cards.
-
 ### Cards Table
-
-The `cards` table contains:
 
 | Column | Type |
 |---|---|
@@ -143,7 +151,11 @@ The `cards` table contains:
 | `image_ref` | TEXT, nullable |
 | `folder_id` | INTEGER NOT NULL |
 
-The relationship is defined using:
+### Foreign-Key Relationship
+
+Each card belongs to one folder through `folder_id`.
+
+The database declares:
 
 ```sql
 FOREIGN KEY (folder_id)
@@ -151,57 +163,45 @@ REFERENCES folders(id)
 ON DELETE CASCADE
 ```
 
-An index on `cards(folder_id)` supports folder-filtered queries.
-
-### Relationship
+The database also defines:
 
 ```text
-Folder
-  |
-  +-- Card 1
-  +-- Card 2
-  +-- Card 3
+idx_cards_folder_id
 ```
 
-Each card belongs to one folder through its `folder_id`.
+This index supports queries that retrieve cards belonging to a particular folder.
 
-The schema uses `ON DELETE CASCADE` because cards are treated as children of their folders. Deleting a folder is intended to remove its associated cards.
+### Migration Strategy
 
-In applications containing billing records, audit logs, or other records requiring retention, restricting deletion, reassignment, or soft deletion would be safer alternatives.
+The database helper supports:
 
-### Versioned Migration
+- `onCreate` for a fresh version-2 installation.
+- `onUpgrade` for upgrading an existing version-1 database.
+- Creation of the new `folders` and `cards` tables.
+- Preservation of the original `my_table`.
+- Foreign-key configuration for the database connection.
 
-The original application used database version 1.
-
-Activity 09 increases the version to 2 and adds the new tables without dropping `my_table`.
-
-The database helper provides:
-
-- An `onCreate` path for creating the complete schema on a fresh installation.
-- An `onUpgrade` path for adding the catalogue schema to an existing version-1 database.
-- Foreign-key configuration on the database connection.
-
-The upgraded installation retained its original guest records. A separate disposable fresh-install test and read-only PRAGMA verification remain outstanding.
+The migration does not intentionally drop or recreate the original guest table.
 
 ## 5. Models and Repository
 
 The application uses typed `Folder` and `CardRecord` models.
 
-The models convert between SQLite rows and Dart objects using mapping methods.
+The models map between Dart objects and SQLite rows.
 
-The repository provides database operations for:
+The repository supports:
 
 - Creating folders.
-- Reading folders with card counts.
-- Reading cards belonging to a selected folder.
+- Reading folders and their card counts.
+- Reading cards by folder ID.
 - Creating cards.
-- Updating cards by ID.
+- Editing cards by ID.
 - Deleting cards by ID.
 - Deleting folders by ID.
 
-Card queries use the selected folder's integer ID rather than its name or screen position.
+Integer primary keys are used to identify records reliably.
 
-Database-generated IDs are important because multiple cards can have the same title.
+Two cards may share the same title while having different IDs.
 
 ## 6. Application Features
 
@@ -213,57 +213,57 @@ The original Activity 08 interface supports:
 - Viewing guest names, ages, and IDs.
 - Editing guests by ID.
 - Canceling edits.
-- Deleting records with confirmation.
+- Deleting guests with confirmation.
 - Refreshing the roster.
-- Validating names and ages.
+- Validating input.
 
-The age range accepted by the original application is 0 through 130.
+The supported age range is 0 through 130.
 
 ### Card Catalogue
 
 The Activity 09 interface supports:
 
 - Creating folders.
-- Displaying folders and card counts.
-- Opening a folder to view its cards.
-- Adding cards with a title, suit, notes, and optional image URL.
+- Displaying folder names and card counts.
+- Opening a folder.
+- Adding cards.
 - Editing existing cards.
-- Selecting a card's folder.
-- Deleting cards by ID.
+- Assigning cards to folders.
+- Deleting individual cards.
 - Deleting folders with confirmation.
-- Showing empty-state feedback.
-- Displaying a suit-symbol fallback when artwork is missing or unavailable.
+- Displaying empty states.
+- Showing fallback artwork when an image is missing.
 
-### Input Validation
+### Card Fields
 
-The interface validates required fields before saving.
+A card contains:
 
-A card title containing only whitespace is rejected.
+- Title.
+- Suit.
+- Notes.
+- Optional image URL.
+- Folder ID.
 
-Folder names are intended to be nonempty after trimming, and the database schema enforces unique folder names.
+### Image Fallback
 
-The duplicate-folder and blank-folder validation cases have not yet been separately recorded as completed manual tests.
+Image references are stored as URLs instead of image bytes.
 
-### Image Handling
+If an image is unavailable or cannot load, the interface displays a suit symbol:
 
-The application stores an optional image reference rather than embedding image bytes in the database.
+| Suit | Fallback |
+|---|---|
+| Hearts | ♥ |
+| Diamonds | ♦ |
+| Clubs | ♣ |
+| Spades | ♠ |
 
-For this implementation, image references are URLs.
-
-A remote URL keeps the database small, but artwork may be unavailable because of network failures or invalid links.
-
-When an image reference is missing or cannot be loaded, the card displays its suit symbol:
-
-- Hearts: ♥
-- Diamonds: ♦
-- Clubs: ♣
-- Spades: ♠
-
-An unavailable image does not require deleting the card or its notes.
+This allows the card to remain usable even when its remote artwork is unavailable.
 
 ## 7. Activity 08 Data Preservation
 
-The original roster records observed after upgrading were:
+The original installation was upgraded from database version 1 to version 2.
+
+The following guest records remained visible after the upgrade:
 
 | Guest ID | Name | Age |
 |---|---|---|
@@ -271,52 +271,126 @@ The original roster records observed after upgrading were:
 | 3 | Acorn | 0 |
 | 4 | Oak | 130 |
 
-**Observed result:** All three records remained visible with their original IDs and values after Activity 09 was installed.
+**Observed result: PASS**
 
-This supports successful preservation on the tested upgraded installation.
+The original records retained their IDs and values after the Activity 09 upgrade.
 
-The available Activity 09 migration screenshot was captured after the upgrade. It is not a substitute for a screenshot captured before migration.
+The available migration screenshot was captured after the upgrade. It is not presented as a pre-upgrade screenshot.
 
-## 8. Activity 09 Test Matrix
+## 8. Fresh-Install SQLite Verification
 
-The following table distinguishes completed observations from unverified portions of the prescribed tests.
+A separate disposable Android emulator, `Activity09_Test` (`emulator-5556`), was used to verify fresh database creation.
 
-| Test | Expected result | Actual observation | Status |
-|---|---|---|---|
-| T1a: Upgrade | Original records remain; new catalogue available | River ID 2, Acorn ID 3, and Oak ID 4 remained visible; catalogue opened | PASS for observed upgrade |
-| T1b: Fresh install | Complete version-2 schema created on a disposable fresh target | Not separately tested | NOT VERIFIED |
-| T2: Create | Atlas has two Compass cards; Harbor has one Signal card | Atlas contained Compass IDs 1 and 2; Harbor contained Signal ID 3 | PASS |
-| T3: Edit | Editing one ID leaves the other unchanged; Cancel writes nothing | ID 1 changed; ID 2 remained unchanged | PARTIAL — edit cancellation not verified |
-| T4: Restart | Records persist after an Android system Force stop and relaunch | Records were observed after stopping and relaunching the app | PARTIAL — exact Force stop procedure not documented |
-| T5: Delete | Cancel leaves records unchanged; card deletion and Atlas cascade work | Compass ID 2 deleted; Harbor removed through folder deletion workflow | PARTIAL — different folder deleted; cancel and direct cascade checks not verified |
-| T6: Validation | Invalid inputs do not create records; missing artwork uses fallback | Blank card title rejected; invalid URL displayed suit symbol | PARTIAL — blank and duplicate folder tests not verified |
+The application was installed, launched, and used to initialize a new SQLite database.
 
-### T1 — Upgrade and Data Preservation
+A copy of `MyDatabase.db` was inspected using the macOS SQLite command-line tool.
 
-The existing Activity 08 database was extended from version 1 to version 2.
+### Verification Commands
 
-After the upgrade, the original roster displayed:
+```sql
+PRAGMA user_version;
 
-| ID | Name | Age |
+SELECT name
+FROM sqlite_master
+WHERE type = 'table';
+
+PRAGMA foreign_key_list(cards);
+
+PRAGMA index_list(cards);
+
+PRAGMA foreign_key_check;
+```
+
+### Actual Results
+
+**Database version:**
+
+```text
+2
+```
+
+**Tables:**
+
+```text
+android_metadata
+my_table
+folders
+sqlite_sequence
+cards
+```
+
+`android_metadata` and `sqlite_sequence` are SQLite/Android support tables.
+
+**Foreign-key definition:**
+
+```text
+0|0|folders|folder_id|id|NO ACTION|CASCADE|NONE
+```
+
+This confirms that `cards.folder_id` references `folders.id` with `ON DELETE CASCADE`.
+
+**Index:**
+
+```text
+0|idx_cards_folder_id|0|c|0
+```
+
+**Foreign-key integrity check:**
+
+```text
+No rows returned
+```
+
+This indicates no foreign-key violations were detected in the inspected database.
+
+### Verification Summary
+
+| Requirement | Result |
+|---|---|
+| Fresh database created | PASS |
+| Database version 2 | PASS |
+| Original `my_table` exists | PASS |
+| `folders` table exists | PASS |
+| `cards` table exists | PASS |
+| Foreign-key relationship defined | PASS |
+| `ON DELETE CASCADE` declared | PASS |
+| `idx_cards_folder_id` exists | PASS |
+| Foreign-key integrity check | PASS |
+
+**Important distinction:** These checks verify the schema and integrity of the copied database. They do not independently establish the Android application's runtime `PRAGMA foreign_keys` connection setting or demonstrate a controlled cascade-deletion test.
+
+The original emulator and its migrated Activity 08 data were not cleared or uninstalled during this verification.
+
+## 9. Activity 09 Test Matrix
+
+| Test | Observed Result | Status |
 |---|---|---|
-| 2 | River | 35 |
-| 3 | Acorn | 0 |
-| 4 | Oak | 130 |
+| T1a — Upgrade | Original guest records retained their IDs and values | PASS |
+| T1b — Fresh install | Version-2 schema created and verified on disposable emulator | PASS |
+| T2 — Create | Atlas contained two Compass cards with distinct IDs; Harbor contained Signal | PASS |
+| T3 — Edit | Editing Compass ID 1 did not change Compass ID 2 | PARTIAL |
+| T4 — Restart | Saved records remained after app force-stop and relaunch | PASS for observed persistence |
+| T5 — Delete | Individual card and folder deletion were observed | PARTIAL |
+| T6 — Validation | Blank card title rejected; invalid image URL showed fallback | PARTIAL |
 
-The Card Catalogue was accessible.
+The partial statuses identify assignment-specific subtests that were not independently documented.
 
-**Observed outcome:** The original guest records were preserved on the upgraded installation.
+### T1 — Upgrade and Fresh Installation
 
-**Not yet verified:** Fresh-install schema creation, `PRAGMA user_version`, `PRAGMA foreign_keys`, `PRAGMA foreign_key_list(cards)`, and `PRAGMA index_list(cards)`.
+The existing version-1 database was upgraded to version 2 without losing the observed guest records.
+
+A separate fresh installation successfully created the version-2 schema.
+
+**Result:** PASS for the observed upgrade, preservation, and fresh-schema verification.
 
 ### T2 — Folder and Card Creation
 
-Two folders were created:
+Folders created:
 
-- Atlas
-- Harbor
+- Atlas.
+- Harbor.
 
-Three cards were added:
+Cards created:
 
 | Card ID | Title | Suit | Folder |
 |---|---|---|---|
@@ -324,77 +398,67 @@ Three cards were added:
 | 2 | Compass | Spades | Atlas |
 | 3 | Signal | Diamonds | Harbor |
 
-**Expected:** Atlas count 2; Harbor count 1; three distinct card IDs.
-
-**Observed:** The folders displayed the expected cards and counts. The two Compass cards received separate IDs despite sharing a title.
+The two Compass cards received distinct IDs despite sharing a title.
 
 **Result:** PASS.
 
-### T3 — Editing by Identity
+### T3 — Editing by ID
 
-Card ID 1 was edited:
+Card ID 1 was changed from:
 
-| Field | Before | After |
-|---|---|---|
-| Title | Compass | Compass Updated |
-| Suit | Hearts | Clubs |
-| Notes | Empty | Edited first Compass card |
+```text
+Compass — Hearts
+```
 
-Card ID 2 remained Compass with the Spades suit.
+to:
 
-**Expected:** Only the selected card changes.
+```text
+Compass Updated — Clubs
+```
 
-**Observed:** Card ID 1 displayed its updated values while card ID 2 remained unchanged.
+Card ID 2 remained:
 
-**Result:** PASS for targeted editing. The separate edit-and-cancel subtest was not verified.
+```text
+Compass — Spades
+```
+
+This demonstrates that the edit targeted the selected card ID.
+
+**Result:** PASS for targeted editing.
+
+The separate edit-cancellation subtest was not independently documented.
 
 ### T4 — Restart Persistence
 
-After editing, the application was stopped and relaunched on the same emulator without clearing its data.
+The application was force-stopped and relaunched on the original emulator without clearing its data.
 
-The following cards were observed:
+Saved records remained available, including the edited Compass card.
 
-| ID | Title | Suit | Folder |
-|---|---|---|---|
-| 1 | Compass Updated | Clubs | Atlas |
-| 2 | Compass | Spades | Atlas |
+**Result:** PASS for observed persistence after force-stop and relaunch.
 
-The edited values and IDs remained available.
-
-**Observed result:** Data persisted across the recorded relaunch.
-
-**Limitation:** The exact Android system **App info → Force stop** procedure was not documented, so the stricter assignment-specific cold-restart test remains unverified.
+The available screenshots do not independently document every step of the Android force-stop procedure.
 
 ### T5 — Deletion
 
-**Individual card deletion:**
+An individual card was deleted without removing the other card.
 
-Compass ID 2 was deleted.
+The Harbor folder was also deleted through the application after containing the Signal card.
 
-Compass Updated ID 1 remained in Atlas.
+Atlas remained available.
 
-**Folder deletion:**
-
-Harbor was deleted after previously containing Signal ID 3.
-
-Harbor disappeared from the folder list, while Atlas remained.
-
-**Observed result:** The interface reflected the individual card deletion and folder deletion.
+**Result:** PASS for observed individual-card and folder deletion.
 
 **Limitations:**
 
-- The prescribed test specifies deleting Atlas and retaining Harbor, whereas the performed test deleted Harbor.
-- Delete-cancellation cases were not separately confirmed.
-- Direct SQL verification of cascading child deletion was not recorded.
-- The observed UI state alone does not establish the exact database-level deletion mechanism.
+- The performed folder-deletion test used Harbor rather than the prescribed Atlas example.
+- Delete-cancellation subtests were not independently recorded.
+- Direct behavioral verification of cascading child deletion was not performed.
 
 ### T6 — Validation and Image Fallback
 
-**Blank title test:**
+**Blank card title:**
 
-An attempt was made to save a card without a title.
-
-The application displayed:
+An attempt to save a card with an empty title displayed:
 
 ```text
 Title cannot be empty
@@ -402,265 +466,242 @@ Title cannot be empty
 
 No new card was created.
 
-**Invalid image reference test:**
+**Invalid image URL:**
 
-A temporary card was created with:
+A test card used:
 
-| Field | Value |
-|---|---|
-| Title | Image Test |
-| Suit | Diamonds |
-| Folder | Atlas |
-| Image URL | `https://example.invalid/missing.png` |
+```text
+https://example.invalid/missing.png
+```
 
-The card displayed the Diamonds fallback symbol without crashing.
+The application displayed the Diamonds suit fallback without crashing.
 
-**Observed result:** PASS for the blank-title and invalid-image cases.
+**Result:** PASS for these observed cases.
 
-**Not yet verified:** Separate blank-folder and duplicate-folder-name validation tests.
+Blank-folder and duplicate-folder-name validation were not separately documented.
 
-### Final Test Data Cleanup
+## 10. Final Observed Catalogue State
 
-The following temporary records were removed:
-
-- Compass ID 2.
-- Harbor and its associated Signal card through the folder deletion workflow.
-- Image Test.
-- Test Folder.
-
-The final observed Card Catalogue state was:
+After removing temporary test records, the original upgraded installation displayed:
 
 | Folder | Card | Card ID | Suit |
 |---|---|---|---|
 | Atlas | Compass Updated | 1 | Clubs |
 
-## 9. Evidence Inventory
+The separate fresh-install emulator was used only for disposable verification.
 
-The following files were confirmed as tracked by Git:
+## 11. Evidence
 
-| File | Description |
-|---|---|
-| `evidence/activity09/T1_migration.png` | Original guest records observed after the version-2 upgrade |
-| `evidence/activity09/T2_folders.png` | Later catalogue state showing Atlas with one remaining card |
-| `evidence/activity09/T4_after.png` | Catalogue after relaunch, including Compass Updated ID 1 |
-| `evidence/T4_before.png` | Earlier Activity 08 screenshot |
-| `evidence/T4_after.png` | Earlier Activity 08 screenshot |
-| `evidence/T6_invalid.png` | Previously captured invalid-input evidence |
-| `evidence/analysis_output.txt` | Saved Flutter analyzer output |
+The repository includes Activity 09 evidence under:
 
-### Required Evidence Not Fully Available
+```text
+evidence/activity09/
+```
 
-The official assignment requests:
+Captured evidence includes:
 
-1. `evidence/T1_before.png` — captured before upgrading the original database.
-2. `evidence/T2_cards.png` — showing the T2 catalogue state.
-3. `evidence/T4_after.png` — showing the Activity 09 post-restart state.
+- Post-migration Activity 08 guest records.
+- Card creation with duplicate titles and distinct IDs.
+- Card editing.
+- Catalogue screenshots after subsequent operations.
+- Fresh-install interface screenshots, where saved.
+- Static-analysis output.
 
-The current repository does not contain genuine screenshots under all three required root-level filenames.
+Relevant screenshot filenames include:
 
-In particular:
+```text
+evidence/activity09/T1_migration.png
+evidence/activity09/T2_cards.png
+evidence/activity09/T3_edited.png
+```
 
-- `T1_migration.png` was captured after the upgrade and cannot establish the pre-upgrade state.
-- `T2_folders.png` shows a later catalogue state, not the original two-folder, three-card T2 setup.
-- The Activity 09 post-relaunch screenshot is under `evidence/activity09/`, and the precise system Force stop procedure has not been verified.
+The original pre-upgrade screenshot was not recovered, so the post-migration screenshot is not labeled as proof of the earlier pre-upgrade state.
 
-These limitations are disclosed rather than presenting unrelated screenshots as evidence of tests that were not captured.
+A read-only copy of the disposable SQLite database was also used for schema verification.
 
-### Static Analysis
+The SQLite database copy is diagnostic test data, not a required submission artifact.
 
-The recorded analyzer output was:
+### Static Analysis Evidence
 
 ```text
 Analyzing local_storage_lab...
-No issues found! (ran in 0.9s)
+No issues found!
 ```
 
-**Result:** PASS for static analysis.
+**Result:** PASS.
 
-Static analysis checks Dart and Flutter code but does not prove database migration correctness or runtime behavior.
-
-## 10. Database Design Decisions
+## 12. Database Design Decisions
 
 ### Why Use Integer IDs?
 
-Names and titles are not reliable row identifiers.
+Titles and names are not guaranteed to be unique.
 
-Two cards named Compass were created with different IDs.
+Two Compass cards were created with different IDs.
 
-Editing ID 1 did not change ID 2.
-
-This supports using primary keys for updates and deletes.
+Editing one card by ID did not modify the other.
 
 ### Why Use Foreign Keys?
 
-A card's `folder_id` identifies its parent folder.
+The `folder_id` column establishes a relationship between cards and their parent folders.
 
-This allows the application to retrieve only the cards belonging to a selected folder and provides a defined relationship between parent and child rows.
+This helps maintain relational consistency and supports folder-specific queries.
 
 ### Why Use Cascading Deletion?
 
-For this fictional card catalogue, deleting a folder is intended to delete its associated cards.
+For this fictional Card Catalogue, deleting a folder is intended to remove its associated cards.
 
-For records that must be retained, such as clinic billing or audit history, cascading deletion could cause unacceptable data loss.
+For applications that must retain historical records, other policies may be more appropriate:
 
-Alternatives include:
+- `ON DELETE RESTRICT`.
+- Soft deletion.
+- Reassignment to another folder.
+- Transactional snapshot and restoration.
 
-- `ON DELETE RESTRICT` to prevent deleting a parent with children.
-- Soft deletion to retain records while hiding them from active views.
-- Reassignment to a different parent.
-- A transactional snapshot-and-restore mechanism for limited undo.
+### Why Store Image URLs?
 
-### Why Store Image References?
+Image URLs avoid storing large image files directly in SQLite.
 
-A URL is smaller than storing image bytes inside SQLite.
+However, remote images depend on network availability and valid links.
 
-However, remote images depend on network availability and the continued validity of the URL.
+The application uses a suit-symbol fallback when artwork cannot be displayed.
 
-The application keeps the card usable by displaying a suit-symbol fallback when artwork cannot be loaded.
+## 13. Graduate Critical Thinking and AI Alchemist's Lab
 
-## 11. Graduate Reflection and AI Alchemist's Lab
+The separate graduate Critical Thinking document contains the required reflections and AI Lab responses.
 
-The separate Critical Thinking document is intended to contain:
+### Reflection Prompts
 
-- Student name, student ID, and Graduate pathway.
-- Prompt 1: Failure reconstruction.
-- Prompt 2: Delete policy trade-off.
-- Prompt 3: Image forensics.
-- Prompt 4: Version-3 migration design.
-- Graduate AI Lab G1: Migration time-loop.
-- Graduate AI Lab G2: Cascade bargain.
-- Personal test observations and evidence references.
-- AI assistance disclosure.
+1. Failure reconstruction.
+2. Delete-policy trade-offs.
+3. Image forensics.
+4. Version-3 migration design.
 
-### Graduate Prompt 4 — Version-3 Design Scope
+### Graduate AI Lab
 
-The version-3 migration is a design exercise, not an implemented application feature.
+- **G1:** Migration time-loop.
+- **G2:** Cascade bargain.
 
-The proposed change adds:
+The graduate document includes the analysis, relevant test observations, and AI assistance disclosure.
 
-- A favorite flag with a safe default for existing rows.
-- A nullable review date.
+### Version-3 Design
 
-A complete design should explain migration version gates, defaults or backfill, transaction behavior, failure recovery, and old-database and fresh-install tests.
+The version-3 migration is a design exercise, not an implemented feature of Activity 09.
 
-No version-3 migration has been implemented as part of this Activity 09 submission.
+The proposed design considers:
+
+- Adding a favorite flag with a safe default.
+- Adding a nullable review date.
+- Preserving existing data.
+- Testing both upgrades and fresh installations.
+- Handling migration failures safely.
 
 ### G1 — Migration Time-Loop
 
-The selected challenge evaluates the claim that a migration error can be caught and ignored while missing tables are recreated later.
+The reflection evaluates why silently ignoring a failed migration can leave a database in an inconsistent state.
 
-The safer approach is to preserve transactional migration behavior, propagate failures, and verify database invariants before allowing normal application operations.
-
-A fault-injection test on a disposable database is a proposed future verification, not a completed test.
+The proposed safer approach preserves migration transaction behavior, propagates failures, and verifies schema invariants.
 
 ### G2 — Cascade Bargain
 
-The selected challenge evaluates the claim that undoing folder deletion only requires reinserting the folder name.
+The reflection evaluates why reinserting a deleted folder name is insufficient to restore its deleted cards, original IDs, and relationships.
 
-Restoring the name alone does not necessarily restore deleted cards, original IDs, foreign-key references, or related metadata.
+Alternatives include restricted deletion, soft deletion, and snapshot-based undo.
 
-The design compares restricted deletion, soft deletion, and snapshot-based undo, including consistency and retention trade-offs.
+No version-3 migration or undo feature was implemented for this activity.
 
-No undo feature has been implemented or tested.
+## 14. Known Limitations
 
-**Note:** The complete graduate answers must be verified in the separately submitted Critical Thinking DOCX. This README describes the selected topics but does not replace that document.
+- Data is stored locally on the device.
+- Cloud synchronization is not implemented.
+- User authentication and database encryption are not included.
+- Remote image URLs may fail.
+- Runtime foreign-key enforcement was not independently queried on the Android connection.
+- A controlled SQL cascade-deletion behavior test was not separately recorded.
+- Some cancellation and validation subtests remain unverified.
+- The original pre-upgrade screenshot was not available.
+- Some test screenshots document the observed application state rather than the entire testing procedure.
 
-## 12. Known Limitations
+These limitations are disclosed to distinguish verified behavior from untested scenarios.
 
-- Data is stored locally on the installed device.
-- There is no cloud synchronization.
-- There is no user authentication or database encryption.
-- Image URLs may become unavailable.
-- A separate disposable fresh-install schema test remains outstanding.
-- Read-only PRAGMA verification has not been recorded.
-- Direct SQL verification of cascading deletion has not been recorded.
-- Some required T3, T5, and T6 cancellation/validation cases remain unverified.
-- The recorded restart does not document the exact Android system Force stop procedure.
-- Some required pre-test screenshots were not captured or are not available in the tracked evidence.
-- Release APK installation succeeded, but an independent screen/data smoke-test confirmation remains outstanding.
+## 15. Attribution and AI Assistance
 
-## 13. Attribution and AI Assistance
+The Activity 08 foundation and SQLite helper were developed using course-provided materials.
 
-The original SQLite helper and Activity 08 foundation were developed using the course-provided materials.
+The application uses Flutter, Dart, SQLite, and the following packages:
 
-The project uses Flutter, Dart, SQLite, and the `sqflite`, `path_provider`, and `path` packages.
+- `sqflite`
+- `path_provider`
+- `path`
 
-**ChatGPT assisted with implementation planning, debugging, and test planning.**
+ChatGPT assisted with implementation planning, debugging, test planning, and documentation.
 
-Assistance also included organizing the repository documentation and reviewing the assignment requirements.
+AI assistance and the evaluation of its suggestions are discussed in the separately submitted graduate Critical Thinking document.
 
-The separately submitted graduate reflection should identify the AI tool/model, date, relevant prompt, short response excerpt, and the claim evaluated against actual application evidence.
+Only observed test results are reported as completed.
 
-Only personally observed tests are reported as completed. Proposed tests and hypothetical outcomes are identified separately.
-
-## 14. GitHub Repository
+## 16. GitHub Repository
 
 **Activity 09 repository:**
 
 https://github.com/AkshithaSanagarapu/local-storage-part-2
 
-The Activity 09 implementation was committed with:
+The repository contains the Flutter application, database implementation, README, and available evidence.
 
-```text
-3880f10 — Complete Activity 09 SQLite Card Catalogue
-```
+The original Activity 08 project was retained separately.
 
-The `main` branch was pushed to the Activity 09 repository.
-
-The original Activity 08 repository was retained separately.
-
-The release APK and iCollege submission files are not required to be committed to the source repository.
-
-## 15. Final Submission Checklist
+## 17. Final Submission Checklist
 
 ### Completed
 
-- [x] Preserve the observed Activity 08 guest records after upgrading.
-- [x] Implement version-2 folder and card schema.
+- [x] Preserve observed Activity 08 guest records.
+- [x] Implement SQLite database version 2.
+- [x] Create `folders` and `cards` tables.
+- [x] Define the foreign-key relationship and cascade rule.
+- [x] Create the `folder_id` index.
 - [x] Implement Folder and CardRecord models.
-- [x] Implement repository-based folder/card operations.
-- [x] Implement Card Catalogue screens and forms.
-- [x] Create Atlas and Harbor folders.
-- [x] Create duplicate-title Compass cards with distinct IDs.
-- [x] Edit one card by ID without changing the other.
-- [x] Observe saved card data after relaunch.
-- [x] Delete an individual card.
-- [x] Delete a folder through the application.
-- [x] Reject a blank card title.
-- [x] Display fallback artwork for an invalid URL.
+- [x] Implement repository-based CRUD operations.
+- [x] Implement Card Catalogue UI.
+- [x] Create folders and cards.
+- [x] Verify duplicate-title cards have distinct IDs.
+- [x] Edit a card by ID.
+- [x] Observe persistence after force-stop and relaunch.
+- [x] Test individual-card deletion.
+- [x] Test folder deletion through the UI.
+- [x] Test blank card-title validation.
+- [x] Test invalid image URL fallback.
 - [x] Run `flutter analyze` successfully.
-- [x] Build a release APK.
-- [x] Install the release APK successfully.
-- [x] Push the Activity 09 source to GitHub.
-- [x] Create `github_link.txt`.
-- [x] Rename the APK to `Activity09_Sanagarapu_Akshitha.apk`.
+- [x] Build the release APK.
+- [x] Install the release APK.
+- [x] Build the debug APK for database inspection.
+- [x] Verify fresh-install database version 2.
+- [x] Verify the three application tables.
+- [x] Verify the declared foreign key and cascade rule.
+- [x] Verify the folder-ID index.
+- [x] Run `PRAGMA foreign_key_check` successfully.
+- [x] Complete graduate reflection prompts 1–4.
+- [x] Complete graduate AI Lab G1 and G2.
+- [x] Prepare the graduate Critical Thinking DOCX.
+- [x] Create the GitHub repository.
+- [x] Push the Activity 09 implementation to GitHub.
+- [x] Prepare the submission APK and GitHub link.
 
-### Remaining Verification and Submission
+### Remaining or Not Independently Verified
 
-- [ ] Confirm that the installed release APK opens and displays the expected data.
-- [ ] Verify the fresh version-2 database on a separate disposable target.
-- [ ] Record read-only database schema and foreign-key diagnostics.
-- [ ] Verify the cascade rule directly using disposable test records.
-- [ ] Confirm remaining cancellation and validation cases.
-- [ ] Perform and document an Android system Force stop and relaunch.
-- [ ] Supply genuine required evidence screenshots if available.
-- [ ] Verify the final graduate Critical Thinking DOCX.
-- [ ] Commit and push this corrected README.
-- [ ] Upload all three required files to iCollege.
-- [ ] Reopen and verify each uploaded submission.
+- [ ] Independently verify the remaining cancellation subtests.
+- [ ] Independently verify blank-folder and duplicate-folder validation.
+- [ ] Perform a controlled cascade-deletion behavior test.
+- [ ] Confirm any additional required screenshots are available.
+- [ ] Commit and push the final README and evidence.
+- [ ] Confirm the final iCollege submission receipt.
 
-## 16. iCollege Submission Files
+## 18. iCollege Submission Files
 
-Submit three separate files:
+The submission consists of three files:
 
 | File | Purpose |
 |---|---|
-| `github_link.txt` | Link to the Activity 09 GitHub repository |
-| `Activity09_Sanagarapu_Akshitha.apk` | Release Android application |
+| `github_link.txt` | Activity 09 GitHub repository link |
+| `Activity09_Sanagarapu_Akshitha.apk` | Release Android APK |
 | `Sanagarapu_Akshitha_CriticalThinking.docx` | Graduate reflection and AI Lab |
 
-The repository contains the Flutter project, database implementation, README, and available evidence.
-
-The submission APK was successfully built and installed. Installation alone does not establish completion of the release smoke test.
-
-**Project status:** The Activity 09 application is implemented, committed, and pushed. The release APK is built and installed. Remaining test and evidence limitations are documented so that completed observations are not confused with unverified requirements.
+**Project status:** The Activity 09 application is implemented, the release APK was built and installed, the original guest records were preserved in the observed upgrade, and the fresh-install version-2 SQLite schema passed direct inspection.
